@@ -1,0 +1,60 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - db_data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:6.4.3-php8.2-apache
+    restart: unless-stopped
+
+    # WP-CLI auto install (for local dev)
+    command: >
+      bash -lc "
+      if ! command -v wp > /dev/null; then
+        curl -sSLo /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar &&
+        chmod +x /usr/local/bin/wp;
+      fi &&
+      apache2-foreground
+      "
+
+    ports:
+      - "${WP_PORT}:80"
+    env_file:
+      - .env
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+    volumes:
+      - ../wp:/var/www/html
+    depends_on:
+      - db
+
+  mail:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "${MAIL_UI_PORT}:8025"
+      - "${MAIL_SMTP_PORT}:1025"
+
+  phpmyadmin:
+    platform: linux/amd64
+    image: phpmyadmin/phpmyadmin:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "${PMA_PORT}:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+volumes:
+  db_data:
